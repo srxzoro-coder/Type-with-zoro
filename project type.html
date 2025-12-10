@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Type with Zoro</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;700&display=swap');
+
+  body {
+    font-family: 'Roboto Mono', monospace;
+    background: linear-gradient(135deg, #0a0f1f, #1b2945);
+    height: 100vh;
+    color: #dbe4f3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 40px;
+    transition: background 0.5s;
+  }
+
+  body.focus-mode {
+    background: #000;
+  }
+
+  h1 {
+    font-size: 3rem;
+    background: linear-gradient(90deg, #47caff, #9a6cff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 3px;
+  }
+
+  #container {
+    width: 80%;
+    max-width: 900px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    margin-top: 20px;
+    transition: background 0.5s, box-shadow 0.5s;
+  }
+
+  #container.focus-mode {
+    background: rgba(0,0,0,0.9);
+    box-shadow: 0 0 0 rgba(0,0,0,0);
+  }
+
+  #modeButtons button, #timeButtons button, #wordButtons button, #focusButton, #restartBtn {
+    background: #10182c;
+    border: 2px solid #47caff;
+    color: #47caff;
+    padding: 10px 20px;
+    margin: 5px;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: 0.3s;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #47caff;
+    color: #0a0f1f;
+  }
+
+  #quote {
+    font-size: 1.6rem;
+    line-height: 2.5rem;
+    margin: 20px 0;
+    min-height: 100px;
+    word-wrap: break-word;
+  }
+
+  #quote span.correct { color: #4cff88; }
+  #quote span.wrong { color: #ff5e5e; }
+
+  #inputBox {
+    width: 100%;
+    padding: 14px;
+    font-size: 1.3rem;
+    border-radius: 10px;
+    border: 2px solid #3a4b71;
+    background: #10182c;
+    color: #dbe4f3;
+  }
+
+  #stats {
+    margin-top: 20px;
+    font-size: 1.4rem;
+    text-align: center;
+  }
+
+  #message {
+    font-size: 1.2rem;
+    color: #8fa2b7;
+    margin-top: 10px;
+  }
+
+  .green-flash {
+    animation: greenFlash 0.35s ease;
+  }
+  @keyframes greenFlash {
+    0% { box-shadow: 0 0 20px #00ff99; }
+    100% { box-shadow: 0 0 0px transparent; }
+  }
+</style>
+</head>
+<body>
+  <h1>Type with Zoro ⚔️</h1>
+
+  <div id="container">
+    <div id="modeButtons">
+      <button onclick="setMode('words')">Word Mode</button>
+      <button onclick="setMode('time')">Timer Mode</button>
+      <button id="focusButton" onclick="toggleFocus()">Focus Mode</button>
+      <button id="restartBtn" onclick="reset()">Restart</button>
+    </div>
+
+    <div id="wordButtons" style="display:none; margin-top:8px;">
+      <button onclick="setWordCount(10)">10 Words</button>
+      <button onclick="setWordCount(25)">25 Words</button>
+      <button onclick="setWordCount(50)">50 Words</button>
+      <button onclick="setWordCount(100)">100 Words</button>
+    </div>
+
+    <div id="timeButtons" style="display:none; margin-top:8px;">
+      <button onclick="setTimerOption(15)">15s</button>
+      <button onclick="setTimerOption(30)">30s</button>
+      <button onclick="setTimerOption(60)">60s</button>
+    </div>
+
+    <div id="quote"></div>
+    <input id="inputBox" placeholder="Click here and start typing to begin the test." />
+
+    <div id="stats">
+      WPM: <span id="wpm">0</span> | Accuracy: <span id="accuracy">0%</span> | Time: <span id="timer">0</span>
+    </div>
+
+    <div id="message">Click inside the box and type to start. Tip: choose Word Mode or Timer Mode.</div>
+  </div>
+
+<script>
+// expanded word list (you asked for more words — added many)
+const wordList = ("the quick brown fox jumps over the lazy dog coding typing speed practice improve yourself focus power blade zoro one piece courage skill development strength honor journey swift sharp calm sea wave nothing is impossible everything is possible brave battle legendary legends home peace sunrise sunset ember arc drift pulse signal rhythm spirit core nova origin phase spark trail motion prime cycle shift aura echo flare boost logic code win type green energy future pirate digital galaxy matrix silent impact nightfall ember drift pulse spirit core nova origin spark trail motion prime cycle shift aura echo flare boost logic").split(/\s+/);
+
+// state
+let mode = "words";
+let fullWords = [];
+let displayWords = [];
+let pageStart = 0;
+const pageSize = 20;
+let wordCount = 25;
+let timerSet = 15;
+let timeLeft = 0;
+let timerInterval = null;
+let started = false;
+let startTime = null;
+let finalTime = 0;
+
+// metrics
+let totalTyped = 0;
+let correctChars = 0;
+
+// DOM
+const quoteDiv = document.getElementById("quote");
+const inputBox = document.getElementById("inputBox");
+const wpmSpan = document.getElementById("wpm");
+const accSpan = document.getElementById("accuracy");
+const timerSpan = document.getElementById("timer");
+const messageDiv = document.getElementById("message");
+const wordButtons = document.getElementById('wordButtons');
+const timeButtons = document.getElementById('timeButtons');
+const focusBtn = document.getElementById('focusButton');
+const container = document.getElementById('container');
+
+function toggleFocus(){
+  document.body.classList.toggle('focus-mode');
+  container.classList.toggle('focus-mode');
+  focusBtn.textContent = container.classList.contains('focus-mode') ? 'Exit Focus' : 'Focus Mode';
+}
+
+function setMode(selected){
+  mode = selected;
+  wordButtons.style.display = mode === 'words' ? 'block' : 'none';
+  timeButtons.style.display = mode === 'time' ? 'block' : 'none';
+  reset();
+}
+
+function setTimerOption(sec){ timerSet = sec; reset(); }
+function setWordCount(count){ wordCount = count; reset(); }
+
+function reset(){
+  // clear timers and state
+  if (timerInterval) clearInterval(timerInterval);
+  started = false;
+  startTime = null;
+  finalTime = 0;
+  timeLeft = timerSet;
+  totalTyped = 0;
+  correctChars = 0;
+  pageStart = 0;
+  wpmSpan.textContent = 0;
+  accSpan.textContent = '0%';
+  timerSpan.textContent = timerSet;
+  messageDiv.style.display = 'block';
+  inputBox.value = '';
+  inputBox.disabled = false;
+  inputBox.focus();
+
+  // build full word list for this test
+  fullWords = [];
+  for(let i=0;i<wordCount;i++) fullWords.push(wordList[Math.floor(Math.random()*wordList.length)]);
+
+  pageStart = 0;
+  updateDisplaySlice();
+}
+
+function updateDisplaySlice(){
+  const remaining = fullWords.length - pageStart;
+  const take = remaining > pageSize ? pageSize : remaining;
+  displayWords = fullWords.slice(pageStart, pageStart + take);
+  const text = displayWords.join(' ');
+  quoteDiv.innerHTML = text.split('').map(c => `<span>${c}</span>`).join('');
+}
+
+function startTimerOnFirstKey(){
+  if(started) return;
+  started = true;
+  startTime = new Date();
+  messageDiv.style.display = 'none';
+  // if in time mode, start countdown
+  if(mode === 'time'){
+    timeLeft = timerSet;
+    timerSpan.textContent = timeLeft;
+    timerInterval = setInterval(()=>{
+      timeLeft--;
+      timerSpan.textContent = timeLeft;
+      if(timeLeft<=0) finishTest();
+    },1000);
+  }
+}
+
+inputBox.addEventListener('keydown', (e)=>{
+  // start timer on first real keypress
+  if(e.key.length === 1 || e.key === 'Backspace' || e.key === 'Enter' || e.key === ' ') {
+    startTimerOnFirstKey();
+  }
+});
+
+inputBox.addEventListener('input', ()=>{
+  // if not started, ignore (safety)
+  if(!startTime) return;
+  const input = inputBox.value;
+  totalTyped = input.length;
+
+  // recompute correctness
+  const chars = quoteDiv.querySelectorAll('span');
+  let currentCorrect = 0;
+  chars.forEach((c, i)=>{
+    const typed = input[i];
+    if(!typed){
+      c.classList.remove('correct','wrong');
+    } else if(typed === c.textContent){
+      c.classList.add('correct'); c.classList.remove('wrong'); currentCorrect++;
+    } else {
+      c.classList.add('wrong'); c.classList.remove('correct');
+    }
+  });
+  correctChars = currentCorrect;
+
+  // green flash feedback
+  quoteDiv.classList.add('green-flash');
+  clearTimeout(quoteDiv._gf);
+  quoteDiv._gf = setTimeout(()=> quoteDiv.classList.remove('green-flash'), 220);
+
+  // compute metrics based on elapsed time since startTime
+  finalTime = ((new Date() - startTime)/1000) || 1;
+  const wordsTyped = input.length / 5;
+  const wpm = Math.round((wordsTyped / finalTime) * 60);
+  wpmSpan.textContent = isFinite(wpm) ? wpm : 0;
+  const accuracy = totalTyped ? Math.min(100, Math.round((correctChars/totalTyped)*100)) : 0;
+  accSpan.textContent = accuracy + '%';
+
+  // handle finishing the displayed slice in words mode
+  const displayedText = quoteDiv.textContent;
+  if(mode === 'words' && input.length >= displayedText.length){
+    // move to next slice
+    pageStart += displayWords.length;
+    if(pageStart < fullWords.length){
+      // show next slice
+      inputBox.value = '';
+      totalTyped = 0;
+      correctChars = 0;
+      updateDisplaySlice();
+      // restart startTime so WPM is for the next slice
+      startTime = new Date();
+    } else {
+      // completed all words
+      finishTest();
+    }
+  }
+});
+
+function finishTest(){
+  if (timerInterval) clearInterval(timerInterval);
+  inputBox.disabled = true;
+  // calculate finalTime (how long they actually typed across last slice)
+  if(!finalTime && startTime) finalTime = ((new Date() - startTime)/1000) || 1;
+  const cumulativeChars = pageStart + inputBox.value.length; // approximate total characters (pageStart is words count not chars; used for rough estimate)
+  const wordsTyped = cumulativeChars / 5;
+  const wpm = Math.round((wordsTyped / finalTime) * 60);
+  const accuracy = totalTyped ? Math.min(100, Math.round((correctChars/totalTyped)*100)) : 0;
+  wpmSpan.textContent = isFinite(wpm) ? wpm : 0;
+  accSpan.textContent = accuracy + '%';
+  timerSpan.textContent = mode === 'time' ? timerSet : (Math.round(finalTime) + 's');
+  quoteDiv.innerHTML = "Words are finished! Great job, Swordsman ⚔️";
+}
+
+// initialize
+reset();
+</script>
+</body>
+</html>
